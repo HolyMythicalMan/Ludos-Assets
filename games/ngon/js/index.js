@@ -148,7 +148,7 @@ function vertexCollision(v1, v1End, domains) {  //= [map, body, [playerBody, pla
 function beforeUnloadEventListener(event) {
     event.preventDefault();
     if (tech.isExitPrompt) {
-        tech.damage *= 1.25
+        m.damageDone *= 1.25
         // simulation.inGameConsole(`<strong class='color-d'>damage</strong> <span class='color-symbol'>*=</span> ${1.25}`)
         simulation.inGameConsole(`<span class='color-var'>tech</span>.damage *= ${1.25} //beforeunload`);
         if (Math.random() < 0.25) {
@@ -266,25 +266,14 @@ window.addEventListener('load', () => {
                     }
                 }
             }
-
-            // if (property === "difficulty") {
-            //     simulation.difficultyMode = Number(set[property])
-            //     lore.setTechGoal()
-            //     document.getElementById("difficulty-select-experiment").value = Number(set[property])
-            // }
             if (property === "molMode") {
                 simulation.molecularMode = Number(set[property])
                 const i = 4 //update experiment text
                 m.fieldUpgrades[i].description = m.fieldUpgrades[i].setDescription()
                 document.getElementById(`field-${i}`).innerHTML = `<div class="card-text">
-                <div class="grid-title"><div class="circle-grid field"></div> &nbsp; ${build.nameLink(m.fieldUpgrades[i].name)}</div>
+                <div class="grid-title"><div class="circle-grid-title field"></div> &nbsp; ${build.nameLink(m.fieldUpgrades[i].name)}</div>
                 ${m.fieldUpgrades[i].description}</div>`
             }
-            // if (property === "seed") {
-            //     document.getElementById("seed").placeholder = Math.initialSeed = String(set[property])
-            //     Math.seed = Math.abs(Math.hash(Math.initialSeed))
-            //     level.populateLevels()
-            // }
             requestAnimationFrame(() => { build.sortTech('have', true) });
 
         }
@@ -424,7 +413,7 @@ const build = {
             document.getElementById("choose-grid").classList.add('choose-grid');
             document.getElementById("choose-grid").classList.remove('choose-grid-no-images');
         }
-        document.getElementById("hide-images").checked = localSettings.isHideImages
+        document.getElementById("show-images").checked = !localSettings.isHideImages
         // console.log(localSettings.isHideImages, from)
     },
     hideHUD() {
@@ -436,7 +425,7 @@ const build = {
         if (localSettings.isAllowed) localStorage.setItem("localSettings", JSON.stringify(localSettings)); //update local storage
         document.getElementById("hide-hud").checked = localSettings.isHideHUD
         document.getElementById("hide-hud").classList.toggle("ticked")
-        simulation.removeEphemera("dmgDefBars")
+        simulation.removeEphemera("dmgDefBars", true)
         if (!localSettings.isHideHUD) {
             simulation.ephemera.push({
                 name: "dmgDefBars", count: 0, do() {
@@ -446,7 +435,7 @@ const build = {
                             document.getElementById("defense-bar").style.width = Math.floor(300 * m.maxHealth * (1 - defense)) + "px";
                             m.lastCalculatedDefense = defense
                         }
-                        const damage = tech.damageFromTech()             //update damage bar
+                        const damage = tech.damageAdjustments()             //update damage bar
                         if (m.lastCalculatedDamage !== damage) {
                             document.getElementById("damage-bar").style.height = Math.floor((Math.atan(0.25 * damage - 0.25) + 0.25) * 0.53 * canvas.height) + "px";
                             m.lastCalculatedDamage = damage
@@ -485,14 +474,23 @@ const build = {
 
         // <strong class='color-g'>${b.activeGun === null || b.activeGun === undefined ? "undefined" : b.guns[b.activeGun].name}</strong> (${b.activeGun === null || b.activeGun === undefined ? "0" : b.guns[b.activeGun].ammo})
 
-        // <br>
-        // <input onclick="build.showImages('pause')" type="checkbox" id="hide-images-pause" name="hide-images-pause" ${localSettings.isHideImages ? "checked" : ""}>
-        // <label for="hide-images-pause" title="hide images for fields, guns, and tech" style="font-size:1.15em;" >hide images</label>
+        let mobText
+        if (level.levelsCleared > 0 && level.levelsCleared < 13) {
+            mobText = `<br>${spawn.pickList[0]} (<strong class="color-tier">T${spawn.mobTierSpawnOrder[level.levelsCleared - 1]}</strong>), ${spawn.pickList[1]} (<strong class="color-tier">T${spawn.mobTierSpawnOrder[level.levelsCleared]}</strong>)<span style="float: right;">mobs ${mob.length}</span>`
+        } else {
+            mobText = ""
+        }
 
+        function cleanText(text) {
+            return text.replace('Key', '').replace('Digit', '')
+        }
+
+        let fullscreenWarning = document.fullscreenElement ? `<div><span style="font-size:1.25em;font-weight: 600; float: left;">FULLSCREEN</span> <em style="float: right;color:#ccc;">press ${cleanText(input.key.fullscreen)} or hold ESC to exit</em></div><br>` : ""
         let text = `<div class="pause-grid-module" style="padding: 8px;">
 <span style="font-size:1.4em;font-weight: 600; float: left;">PAUSED</span> 
 <em style="float: right;color:#ccc;">press ${input.key.pause} to resume</em>
 <br>
+${fullscreenWarning}
 <button onclick="build.shareURL(false)" class='sort-button' style="font-size:1em;float: right;">copy build URL</button>
 <input onclick="build.hideHUD('settings')" type="checkbox" id="hide-hud" name="hide-hud" ${localSettings.isHideHUD ? "checked" : ""}>
 <label for="hide-hud" title="hide: tech, damage taken, damage, in game console" style="font-size:1.15em;">minimal HUD</label>
@@ -502,10 +500,10 @@ const build = {
 <details id = "simulation-variables-details" style="padding: 0 8px;line-height: 140%;">
 <summary>simulation variables</summary>
 <div class="pause-details">
-<strong class='color-d'>damage</strong> ${((tech.damageFromTech())).toPrecision(4)}x
-<span style="float: right;"><strong class='color-d'>level</strong> ${((m.dmgScale)).toPrecision(4)}x</span>
+<strong class='color-d'>damage</strong> ${((tech.damageAdjustments())).toPrecision(4)}x
+<span style="float: right;">empty</span>
 <br><strong class='color-defense'>damage taken</strong> ${(m.defense()).toPrecision(4)}x
-<span style="float: right;"><strong class='color-defense'>level</strong> ${(simulation.dmgScale).toPrecision(4)}x</span>
+<span style="float: right;">empty</span>
 <br><strong class='color-h'>health</strong> (${level.isHideHealth ? "null" : (m.health * 100).toFixed(0)} / ${(m.maxHealth * 100).toFixed(0)})
 <span style="float: right;">${powerUps.research.count} ${powerUps.orb.research()}</span>
 <br><strong class='color-f'>energy</strong> (${(m.energy * 100).toFixed(0)} / ${(m.maxEnergy * 100).toFixed(0)}) + (${(m.fieldRegen * 6000 * level.isReducedRegen).toFixed(0)}/s)
@@ -521,33 +519,33 @@ ${botText}
 <span style="float: right;">position (${player.position.x.toFixed(0)}, ${player.position.y.toFixed(0)})</span>
 <br>seed ${Math.initialSeed}
 <span style="float: right;">mouse (${simulation.mouseInGame.x.toFixed(0)}, ${simulation.mouseInGame.y.toFixed(0)})</span>
-<br>cycles ${m.cycle}
+<br>cycles ${m.cycle - 600}
 <span style="float: right;">velocity (${player.velocity.x.toFixed(2)}, ${player.velocity.y.toFixed(2)})</span>
-<br>mobs ${mob.length} (${spawn.pickList[0]},  ${spawn.pickList[1]})
-<span style="float: right;">blocks ${body.length}</span>
 <br>bullets ${bullet.length}
 <span style="float: right;">power ups ${powerUp.length}</span>
+${mobText}
 
 ${simulation.isCheating ? "<br><br><em>lore disabled</em>" : ""}
 </div>
 </details>
 </div>`
+
         text += `<div class="pause-grid-module card-background" style="height:auto;">
 <details id="difficulty-parameters-details" style="padding: 0 8px;">
 <summary>difficulty parameters</summary>
 <div class="pause-details">
-        ${simulation.difficultyMode > 0 ? `<div class="pause-difficulty-row"><strong>0.85x</strong> <strong class='color-d'>damage</strong> per level<br><strong>1.25x</strong> <strong class='color-defense'>damage taken</strong> per level</div>` : " "}
-        ${simulation.difficultyMode > 1 ? `<div class="pause-difficulty-row">spawn <strong>more</strong> mobs<br>mobs move <strong>faster</strong></div>` : " "}
-        ${simulation.difficultyMode > 2 ? `<div class="pause-difficulty-row">spawn a <strong>2nd boss</strong> each level<br>bosses spawn <strong>0.5x</strong> power ups</div>` : " "}
-        ${simulation.difficultyMode > 3 ? `<div class="pause-difficulty-row"><strong>0.85x</strong> <strong class='color-d'>damage</strong> per level<br><strong>1.25x</strong> <strong class='color-defense'>damage taken</strong> per level</div>` : " "}
-        ${simulation.difficultyMode > 4 ? `<div class="pause-difficulty-row"><strong>+1</strong> random <strong class="constraint">constraint</strong> each level<br>fewer initial power ups</div>` : " "}
-        ${simulation.difficultyMode > 5 ? `<div class="pause-difficulty-row"><strong>0.5x</strong> initial <strong class='color-d'>damage</strong><br><strong>2x</strong> initial <strong class='color-defense'>damage taken</strong></div>` : " "}        
-        ${simulation.difficultyMode > 6 ? `<div class="pause-difficulty-row"><strong>+1</strong> random <strong class="constraint">constraint</strong> each level<br>fewer ${powerUps.orb.tech()} spawn</div>` : " "}        
+        ${simulation.difficultyMode > 0 ? `<div class="pause-difficulty-row">spawn higher <strong class="color-tier">TIER</strong> mobs<br>after every <strong>4</strong> levels</div>` : " "}
+        ${simulation.difficultyMode > 1 ? `<div class="pause-difficulty-row"><strong>0.5x</strong> <strong class='color-d'>damage</strong><br><strong>2x</strong> <strong class='color-defense'>damage taken</strong></div>` : " "}
+        ${simulation.difficultyMode > 2 ? `<div class="pause-difficulty-row">spawn a <strong>2nd boss</strong><br>bosses spawn <strong>fewer</strong> ${powerUps.orb.tech()}</div>` : " "}
+        ${simulation.difficultyMode > 3 ? `<div class="pause-difficulty-row">one mob per level will<br>be from <strong>2</strong> <strong class="color-tier">TIER</strong> higher</div>` : " "}
+        ${simulation.difficultyMode > 4 ? `<div class="pause-difficulty-row"><strong>+1</strong> random <strong class="constraint">constraint</strong><br>fewer initial <strong>power ups</strong></div>` : " "}
+        ${simulation.difficultyMode > 5 ? `<div class="pause-difficulty-row"><strong>0.5x</strong> <strong class='color-d'>damage</strong><br><strong>2x</strong> <strong class='color-defense'>damage taken</strong></div>` : " "}
+        ${simulation.difficultyMode > 6 ? `<div class="pause-difficulty-row"><strong>+1</strong> random <strong class="constraint">constraint</strong><br>fewer ${powerUps.orb.tech()} spawn</div>` : " "}
 </div>
 </details>
 ${simulation.difficultyMode > 4 ? `<details id="constraints-details" style="padding: 0 8px;"><summary>active constraints</summary><div class="pause-details"><span class="constraint">${level.constraintDescription1}<br>${level.constraintDescription2}</span></div></details>` : ""}
 </div>`
-        if (!localSettings.isHideHUD) text += `<div class="pause-grid-module card-background" style="height:auto;">
+        text += `<div class="pause-grid-module card-background" style="height:auto;">
 <details id = "console-log-details" style="padding: 0 8px;">
 <summary>console log</summary>
 <div class="pause-details">
@@ -565,7 +563,7 @@ ${simulation.difficultyMode > 4 ? `<details id="constraints-details" style="padd
             const style = localSettings.isHideImages ? `style="height:auto;"` : `style="background-image: url('img/field/${m.fieldUpgrades[m.fieldMode].name}${m.fieldMode === 0 ? m.fieldUpgrades[0].imageNumber : ""}.webp');"`
             text += `<div class="pause-grid-module card-background" id="pause-field" ${style} >
                                                     <div class="card-text">
-                                                        <div class="grid-title"><div class="circle-grid field"></div> &nbsp; ${build.nameLink(m.fieldUpgrades[m.fieldMode].name)}</div>
+                                                        <div class="grid-title"><div class="circle-grid-title field"></div> &nbsp; ${build.nameLink(m.fieldUpgrades[m.fieldMode].name)}</div>
                                                         ${m.fieldUpgrades[m.fieldMode].description}</div> </div>`
             //button below for next
             text += `<div class="pause-grid-module" id="pause-field-next" style="animation: fieldColorCycle 3s linear infinite alternate;border-bottom: 1px solid #000;">
@@ -576,17 +574,14 @@ ${simulation.difficultyMode > 4 ? `<details id="constraints-details" style="padd
             const style = localSettings.isHideImages ? `style="height:auto;"` : `style="background-image: url('img/field/${m.fieldUpgrades[m.fieldMode].name}${m.fieldMode === 0 ? m.fieldUpgrades[0].imageNumber : ""}.webp');"`
             text += `<div class="pause-grid-module card-background" id="pause-field" ${style} >
                                                     <div class="card-text">
-                                                        <div class="grid-title"><div class="circle-grid field"></div> &nbsp; ${build.nameLink(m.fieldUpgrades[m.fieldMode].name)}</div>
+                                                        <div class="grid-title"><div class="circle-grid-title field"></div> &nbsp; ${build.nameLink(m.fieldUpgrades[m.fieldMode].name)}</div>
                                                         ${m.fieldUpgrades[m.fieldMode].description}</div> </div>`
         }
-        // for (let i = 0, len = b.inventory.length; i < len; i++) {
-        //     text += `<div class="pause-grid-module"><div class="grid-title"><div class="circle-grid gun"></div> &nbsp; ${build.nameLink(b.guns[b.inventory[i]].name)} - <span style="font-size:100%;font-weight: 100;">${b.guns[b.inventory[i]].ammo}</span></div> ${b.guns[b.inventory[i]].description}</div>`
-        // }
         for (let i = 0, len = b.inventory.length; i < len; i++) {
             const style = localSettings.isHideImages ? `style="height:auto;"` : `style="background-image: url('img/gun/${b.guns[b.inventory[i]].name}.webp');"`
             text += `<div class="pause-grid-module card-background" ${style} >
                                                     <div class="card-text">
-                                                        <div class="grid-title"><div class="circle-grid gun"></div> &nbsp; ${build.nameLink(b.guns[b.inventory[i]].name)} - <span style="font-size:100%;font-weight: 100;">${b.guns[b.inventory[i]].ammo}</span></div>
+                                                        <div class="grid-title"><div class="circle-grid-title gun"></div> &nbsp; ${build.nameLink(b.guns[b.inventory[i]].name)} - <span style="font-size:100%;font-weight: 100;">${b.guns[b.inventory[i]].ammo}</span></div>
                                                         ${b.guns[b.inventory[i]].descriptionFunction()}</div> </div>`
         }
         let el = document.getElementById("pause-grid-left")
@@ -616,7 +611,7 @@ ${simulation.difficultyMode > 4 ? `<details id="constraints-details" style="padd
         for (let i = 0, len = tech.tech.length; i < len; i++) {
             if (tech.tech[i].count > 0) {
                 const style = (localSettings.isHideImages || tech.tech[i].isJunk || tech.tech[i].isLore) ? `style="height:auto;"` : `style = "background-image: url('img/${tech.tech[i].name}.webp');"`
-                const techCountText = tech.tech[i].count > 1 ? `(${tech.tech[i].count}x)` : "";
+                // const techCountText = tech.tech[i].count > 1 ? `(${tech.tech[i].count}x)` : "";
                 if (tech.tech[i].isInstant) {
                     // text += `<div class="pause-grid-module" id ="${i}-pause-tech"  style = "border: 0px; opacity:0.5; font-size: 60%; line-height: 130%; margin: 1px; padding: 6px;"><div class="grid-title">${tech.tech[i].link} ${techCountText}</div>${tech.tech[i].descriptionFunction ? tech.tech[i].descriptionFunction() : tech.tech[i].description}</div></div>`
                 } else if (tech.tech[i].isFieldTech) {
@@ -702,7 +697,6 @@ ${simulation.difficultyMode > 4 ? `<details id="constraints-details" style="padd
         } else if (find === 'have') {
             tech.tech.sort((a, b) => {
                 return (a.allowed() === b.allowed()) ? 0 : a.allowed() ? -1 : 1;
-                return 0;
             });
         } else if (find === 'heal') {
             tech.tech.sort((a, b) => {
@@ -794,7 +788,7 @@ ${simulation.difficultyMode > 4 ? `<details id="constraints-details" style="padd
     isExperimentRun: false,
     techText(i) {
         return `<div class="card-text" >
-                                <div class="grid-title" ><div class="circle-grid tech"></div> &nbsp; ${build.nameLink(tech.tech[i].name)} ${tech.tech[i].count > 1 ? `(${tech.tech[i].count}x)` : ""}</div>
+                                <div class="grid-title" ><div class="circle-grid-title tech"></div> &nbsp; ${build.nameLink(tech.tech[i].name)} ${tech.tech[i].count > 1 ? `(${tech.tech[i].count}x)` : ""}</div>
                                 ${tech.tech[i].descriptionFunction ? tech.tech[i].descriptionFunction() : tech.tech[i].description}</div>`
     },
     instantTechText(i) {
@@ -814,22 +808,22 @@ ${simulation.difficultyMode > 4 ? `<details id="constraints-details" style="padd
     gunTechText(i) {
         return `<div class="card-text"> <div class="grid-title">
                                 <span style="position:relative;">
-                                    <div class="circle-grid tech" style="position:absolute; top:0; left:0;opacity:0.8;"></div>
-                                    <div class="circle-grid gun" style="position:absolute; top:0; left:10px; opacity:0.65;"></div>
+                                    <div class="circle-grid-title tech" style="position:absolute; top:0.12em; left:0;opacity:0.8;"></div>
+                                    <div class="circle-grid-title gun" style="position:absolute; top:0.12em; left:10px; opacity:0.65;"></div>
                                 </span> &nbsp; &nbsp; &nbsp; &nbsp;  &nbsp; ${build.nameLink(tech.tech[i].name)} ${tech.tech[i].count > 1 ? `(${tech.tech[i].count}x)` : ""}</div>
                                 ${tech.tech[i].descriptionFunction ? tech.tech[i].descriptionFunction() : tech.tech[i].description}</div>`
     },
     fieldTechText(i) {
         return `<div class="card-text"><div class="grid-title">
                                 <span style="position:relative;">
-                                    <div class="circle-grid tech" style="position:absolute; top:0; left:0;opacity:0.8;"></div>
-                                    <div class="circle-grid field" style="position:absolute; top:0; left:10px;opacity:0.65;"></div>
+                                    <div class="circle-grid-title tech" style="position:absolute; top:0.12em; left:0;opacity:0.8;"></div>
+                                    <div class="circle-grid-title field" style="position:absolute; top:0.12em; left:10px;opacity:0.65;"></div>
                                 </span> &nbsp; &nbsp; &nbsp; &nbsp;  &nbsp; ${build.nameLink(tech.tech[i].name)} ${tech.tech[i].count > 1 ? `(${tech.tech[i].count}x)` : ""}</div>
                                 ${tech.tech[i].descriptionFunction ? tech.tech[i].descriptionFunction() : tech.tech[i].description}</div>`
     },
     junkTechText(i) {
         return `<div class="card-text">
-                                <div class="grid-title"><div class="circle-grid junk"></div> &nbsp; ${build.nameLink(tech.tech[i].name)} ${tech.tech[i].count > 1 ? `(${tech.tech[i].count}x)` : ""}</div>
+                                <div class="grid-title"><div class="circle-grid-title junk"></div> &nbsp; ${build.nameLink(tech.tech[i].name)} ${tech.tech[i].count > 1 ? `(${tech.tech[i].count}x)` : ""}</div>
                                 ${tech.tech[i].descriptionFunction ? tech.tech[i].descriptionFunction() : tech.tech[i].description}</div>`
     },
     choosePowerUp(index, type, isAllowed = false) {
@@ -867,10 +861,8 @@ ${simulation.difficultyMode > 4 ? `<details id="constraints-details" style="padd
                 simulation.molecularMode++
                 if (simulation.molecularMode > i - 1) simulation.molecularMode = 0
                 m.fieldUpgrades[i].description = m.fieldUpgrades[i].setDescription()
-                // document.getElementById(`field-${i}`).innerHTML = `<div class="grid-title"><div class="circle-grid field"></div> &nbsp; ${build.nameLink(m.fieldUpgrades[i].name)}</div> ${m.fieldUpgrades[i].description}`
-
                 document.getElementById(`field-${i}`).innerHTML = `<div class="card-text">
-                                <div class="grid-title"><div class="circle-grid field"></div> &nbsp; ${build.nameLink(m.fieldUpgrades[i].name)}</div>
+                                <div class="grid-title"><div class="circle-grid-title field"></div> &nbsp; ${build.nameLink(m.fieldUpgrades[i].name)}</div>
                                 ${m.fieldUpgrades[i].description}</div>`
             }
         } else if (type === "tech") {
@@ -903,7 +895,6 @@ ${simulation.difficultyMode > 4 ? `<details id="constraints-details" style="padd
                         techID.innerHTML = build.gunTechText(i)
                     } else if (tech.tech[i].isJunk) {
                         techID.innerHTML = build.junkTechText(i)
-                        // `<div class="grid-title"><div class="circle-grid junk"></div> &nbsp; ${tech.tech[i].link} ${techCountText}</div>${tech.tech[i].descriptionFunction ? tech.tech[i].descriptionFunction() : tech.tech[i].description}</div>`
                     } else if (tech.tech[i].isSkin) {
                         techID.classList.remove('experiment-grid-hide');
                         techID.innerHTML = build.skinTechText(i)
@@ -943,20 +934,7 @@ ${simulation.difficultyMode > 4 ? `<details id="constraints-details" style="padd
             }
         }
     },
-    //     <div>
-    // <select name="difficulty-select" id="difficulty-select-experiment">
-    // <option value="1">easy</option>
-    // <option value="2" selected>normal ⚆</option>
-    // <option value="4">hard ⚆</option>
-    // <option value="5">why ⚇</option>
-    // </select>
-    // &nbsp; &nbsp;
-    //     <label for="hide-images-experiment" title="reload experiment with no images for fields, guns, and tech" style="font-size: 0.85em;">hide images</label>
-    //     <input onclick="build.showImages('experiment')" type="checkbox" id="hide-images-experiment" name="hide-images-experiment" style="width:13px; height:13px;" ${localSettings.isHideImages ? "checked" : ""}>
-    // </div>
 
-    // <button onclick="build.sortTech('allowed', true)" class='sort-button' style="letter-spacing: 1px;font-weight: 400;">allowed</button>
-    // <button onclick="build.sortTech('have', true)" class='sort-button color-m' style="letter-spacing: 1px;font-weight: 800;">have</button>
     populateGrid() { //background-color:var(--build-bg-color);
         let text = `
 <div class="experiment-start-box">
@@ -1001,14 +979,14 @@ ${simulation.difficultyMode > 4 ? `<details id="constraints-details" style="padd
             const style = localSettings.isHideImages ? hideStyle : `style="background-image: url('img/field/${m.fieldUpgrades[i].name}${i === 0 ? m.fieldUpgrades[0].imageNumber : ""}.webp');"`
             text += `<div id="field-${i}" class="experiment-grid-module card-background ${m.fieldMode === i ? " build-field-selected" : ""}" onclick="build.choosePowerUp(${i},'field')" ${style} >
                             <div class="card-text">
-                                <div class="grid-title"><div class="circle-grid field"></div> &nbsp; ${build.nameLink(m.fieldUpgrades[i].name)}</div>
+                                <div class="grid-title"><div class="circle-grid-title field"></div> &nbsp; ${build.nameLink(m.fieldUpgrades[i].name)}</div>
                                 ${m.fieldUpgrades[i].description}</div> </div>`
         }
         for (let i = 0, len = b.guns.length; i < len; i++) {
             const style = localSettings.isHideImages ? hideStyle : `style="background-image: url('img/gun/${b.guns[i].name}.webp');"`
             text += `<div id="gun-${i}" class="experiment-grid-module card-background ${b.guns[i].have ? " build-gun-selected" : ""}" onclick="build.choosePowerUp(${i},'gun')" ${style} >
                         <div class="card-text">
-                            <div class="grid-title"><div class="circle-grid gun"></div> &nbsp; ${build.nameLink(b.guns[i].name)}</div>
+                            <div class="grid-title"><div class="circle-grid-title gun"></div> &nbsp; ${build.nameLink(b.guns[i].name)}</div>
                             ${b.guns[i].descriptionFunction()}</div> </div>`
         }
         for (let i = 0, len = tech.tech.length; i < len; i++) {
@@ -1139,7 +1117,6 @@ ${simulation.difficultyMode > 4 ? `<details id="constraints-details" style="padd
     hasExperimentalMode: false,
     startExperiment() { //start playing the game after exiting the experiment menu
         build.isExperimentSelection = false;
-        spawn.setSpawnList(); //gives random mobs,  not starter mobs
         if (b.inventory.length > 0) {
             b.activeGun = b.inventory[0] //set first gun to active gun
             b.inventoryGun = 0;
@@ -1217,6 +1194,15 @@ const input = {
     isPauseKeyReady: true,
     // isMouseInside: true,
     // lastDown: null,
+    reset() {
+        input.fire = false
+        input.field = false
+        input.up = false
+        input.down = false
+        input.left = false
+        input.fire = false
+        input.right = false
+    },
     key: {
         fire: "KeyF",
         field: "Space",
@@ -1225,6 +1211,7 @@ const input = {
         left: "KeyA",
         right: "KeyD",
         pause: "KeyP",
+        fullscreen: "KeyO",
         nextGun: "KeyE",
         previousGun: "KeyQ",
         testing: "KeyT"
@@ -1238,6 +1225,7 @@ const input = {
             left: "KeyA",
             right: "KeyD",
             pause: "KeyP",
+            fullscreen: "KeyO",
             nextGun: "KeyE",
             previousGun: "KeyQ",
             testing: "KeyT"
@@ -1256,6 +1244,7 @@ const input = {
         document.getElementById("key-left").innerHTML = cleanText(input.key.left)
         document.getElementById("key-right").innerHTML = cleanText(input.key.right)
         document.getElementById("key-pause").innerHTML = cleanText(input.key.pause)
+        document.getElementById("key-fullscreen").innerHTML = cleanText(input.key.fullscreen)
         document.getElementById("key-next-gun").innerHTML = cleanText(input.key.nextGun)
         document.getElementById("key-previous-gun").innerHTML = cleanText(input.key.previousGun)
         document.getElementById("key-testing").innerHTML = cleanText(input.key.testing) //if (localSettings.loreCount > 0)
@@ -1264,6 +1253,8 @@ const input = {
         document.getElementById("splash-down").innerHTML = cleanText(input.key.down)[0]
         document.getElementById("splash-left").innerHTML = cleanText(input.key.left)[0]
         document.getElementById("splash-right").innerHTML = cleanText(input.key.right)[0]
+        document.getElementById("splash-pause").innerHTML = cleanText(input.key.pause)[0]
+        document.getElementById("splash-fullscreen").innerHTML = cleanText(input.key.fullscreen)[0]
         document.getElementById("splash-next-gun").innerHTML = cleanText(input.key.nextGun)[0]
         document.getElementById("splash-previous-gun").innerHTML = cleanText(input.key.previousGun)[0]
 
@@ -1280,6 +1271,7 @@ const input = {
         document.getElementById("key-left").style.background = backgroundColor
         document.getElementById("key-right").style.background = backgroundColor
         document.getElementById("key-pause").style.background = backgroundColor
+        document.getElementById("key-fullscreen").style.background = backgroundColor
         document.getElementById("key-next-gun").style.background = backgroundColor
         document.getElementById("key-previous-gun").style.background = backgroundColor
         document.getElementById("key-testing").style.background = backgroundColor
@@ -1327,6 +1319,9 @@ const input = {
                     break;
                 case "key-pause":
                     input.key.pause = event.code
+                    break;
+                case "key-fullscreen":
+                    input.key.fullscreen = event.code
                     break;
                 case "key-next-gun":
                     input.key.nextGun = event.code
@@ -1427,21 +1422,30 @@ window.addEventListener("keydown", function (event) {
                 input.isPauseKeyReady = false
                 setTimeout(function () { input.isPauseKeyReady = true }, 300);
                 if (simulation.isChoosing) {
-
                     build.pauseGrid()
-
                 } else if (simulation.paused) {
                     if (document.activeElement !== document.getElementById('sort-input')) {
                         build.unPauseGrid()
                         simulation.paused = false;
                         // level.levelAnnounce();
                         document.body.style.cursor = "none";
-                        requestAnimationFrame(cycle);
+                        requestAnimationFrame(cycle); //restart time
+
+                        if (document.fullscreenElement && !simulation.onTitlePage && !build.isExperimentSelection && !simulation.isChoosing) {
+                            canvas.requestPointerLock();
+                            mouseMove.isPointerLocked = true
+                            mouseMove.reset()
+                        }
                     }
                 } else {  //if (!tech.isNoDraftPause)
                     simulation.paused = true;
                     build.pauseGrid()
                     document.body.style.cursor = "auto";
+                    if (document.fullscreenElement) {
+                        document.exitPointerLock();
+                        mouseMove.isPointerLocked = false
+                        mouseMove.reset()
+                    }
 
                     if (tech.isPauseSwitchField || simulation.testing) {
                         document.getElementById("pause-field-previous").addEventListener("click", () => {
@@ -1481,6 +1485,95 @@ window.addEventListener("keydown", function (event) {
                     }
                 }
             }
+            break
+        case input.key.fullscreen:
+            // Escape key will also automatically exit pointer lock and fullscreen
+            // console.log(document.activeElement !== document.getElementById('sort-input'), document.activeElement)
+
+
+            // const onFullscreenChange = () => {
+            //     if (document.fullscreenElement) { // Make sure we entered, not exited
+            //         input.reset();
+
+            //         if (!simulation.onTitlePage && !build.isExperimentSelection && !simulation.paused && !simulation.isChoosing) {
+            //             canvas.requestPointerLock();
+            //             mouseMove.isPointerLocked = true;
+            //             mouseMove.reset();
+            //         } else {
+            //             mouseMove.isLockPointer = true;
+            //             document.body.addEventListener('mousedown', mouseMove.pointerUnlock);
+            //         }
+            //     }
+            // };
+
+            // // Add the listener that runs only once.
+            // document.addEventListener('fullscreenchange', onFullscreenChange, { once: true });
+
+            // // Now, request fullscreen.
+            // document.documentElement.requestFullscreen().catch(err => {
+            //     // If the request fails, the 'fullscreenchange' event will never fire,
+            //     // so the listener we added will just be garbage collected. No cleanup needed.
+            //     console.error('Error attempting to enable fullscreen:', err);
+            // });
+
+            if (document.activeElement !== document.getElementById('sort-input')) {//not typing "o" in the sort text menu
+                if (document.fullscreenElement) { //exit fullscreen mode if in fullscreen  
+                    document.exitPointerLock();
+                    mouseMove.isPointerLocked = false
+                    mouseMove.reset()
+                    document.exitFullscreen();
+                    input.reset(); //to prevent key ghosting reset all input keys
+
+
+
+                } else if (mouseMove.isMouseInWindow) { //if mouse is in the window enter fullscreen
+                    document.documentElement.requestFullscreen().then(() => {//wait for fullscreen to be ready
+                        input.reset(); //to prevent key ghosting reset all input keys
+                        //request pointer lock, but not if in a game situation that needs the traditional mouse
+                        if (!simulation.onTitlePage && !build.isExperimentSelection && !simulation.paused && !simulation.isChoosing) {
+                            canvas.requestPointerLock();
+                            mouseMove.isPointerLocked = true
+                            mouseMove.reset()
+                        } else {
+                            // mouseMove.isLockPointer = true
+                            // document.body.addEventListener('mousedown', mouseMove.pointerUnlock, { once: true });//watches for mouse clicks that exit draft mode and self removes
+                            document.addEventListener('mousedown', mouseMove.pointerUnlock, { once: true })
+                        }
+                    }).catch(err => {
+                        console.error('Error attempting to enable fullscreen:', err);
+                    });
+                }
+            }
+
+
+
+
+
+            // if (document.fullscreenElement && document.activeElement !== document.getElementById('sort-input')) {
+            //     document.exitPointerLock();
+            //     mouseMove.isPointerLocked = false
+            //     mouseMove.reset()
+            //     document.exitFullscreen();
+            //     input.reset(); //to prevent key ghosting reset all input keys
+            // } else if (document.activeElement !== document.getElementById('sort-input') && mouseMove.isMouseInWindow) {
+            //     document.documentElement.requestFullscreen().then(() => {
+            //         input.reset(); //to prevent key ghosting reset all input keys
+
+            //         // Small delay to ensure fullscreen is established, then lock pointer to canvas
+            //         if (!simulation.onTitlePage && !build.isExperimentSelection && !simulation.paused && !simulation.isChoosing) {
+            //             setTimeout(() => {
+            //                 canvas.requestPointerLock();
+            //                 mouseMove.isPointerLocked = true
+            //                 mouseMove.reset()
+            //             }, 100);
+            //         } else {
+            //             mouseMove.isLockPointer = true
+            //             document.body.addEventListener('mousedown', mouseMove.pointerUnlock);//watches for mouse clicks that exit draft mode and self removes
+            //         }
+            //     }).catch(err => {
+            //         console.error('Error attempting to enable fullscreen:', err);
+            //     });
+            // }
             break
         case input.key.testing:
             if (m.alive && localSettings.loreCount > 0 && !simulation.paused && !build.isExperimentSelection) {
@@ -1543,7 +1636,7 @@ window.addEventListener("keydown", function (event) {
                     <td class='key-used'>clear mobs</td>
                 </tr>
                 <tr>
-                    <td class='key-input-pause'>I/O</td>
+                    <td class='key-input-pause'>–/+</td>
                     <td class='key-used'>zoom in / out</td>
                 </tr>
                 <tr>
@@ -1603,13 +1696,13 @@ window.addEventListener("keydown", function (event) {
     if (simulation.testing) {
         if (event.key === "X") m.death(); //only uppercase
         switch (event.key.toLowerCase()) {
-            case "o":
+            case "=":
                 // simulation.isAutoZoom = false;
                 // simulation.zoomScale /= 0.9;
                 // simulation.setZoom();
                 simulation.zoomTransition(simulation.zoomScale / 0.9)
                 break;
-            case "i":
+            case "-":
                 // simulation.isAutoZoom = false;
                 // simulation.zoomScale *= 0.9;
                 // simulation.setZoom();
@@ -1637,8 +1730,7 @@ window.addEventListener("keydown", function (event) {
                 spawn.bodyRect(simulation.mouseInGame.x, simulation.mouseInGame.y, 50, 50);
                 break
             case "7":
-                const pick = spawn.fullPickList[Math.floor(Math.random() * spawn.fullPickList.length)];
-                spawn[pick](simulation.mouseInGame.x, simulation.mouseInGame.y);
+                spawn.randomMobByLevelsCleared(simulation.mouseInGame.x, simulation.mouseInGame.y)
                 break
             case "8":
                 spawn.randomLevelBoss(simulation.mouseInGame.x, simulation.mouseInGame.y);
@@ -1711,14 +1803,93 @@ window.addEventListener("keydown", function (event) {
         }
     }
 });
+
+//exit fullscreen if you switch programs
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden && document.fullscreenElement) {
+        document.exitFullscreen();
+    }
+});
 //mouse move input
-function mouseMoveDefault(e) {
-    simulation.mouse.x = e.clientX;
-    simulation.mouse.y = e.clientY;
+const mouseMove = {
+    active(e) { },//this controls how the mouse is updated in the mousemove event based on 1 of the 4 methods below
+    default(e) {
+        simulation.mouse.x = e.clientX;
+        simulation.mouse.y = e.clientY;
+    },
+    pointerLocked(e) {
+        simulation.mouse.x += e.movementX;
+        simulation.mouse.y += e.movementY;
+        //keep mouse inside canvas
+        if (simulation.mouse.x < 0) simulation.mouse.x = 0
+        if (simulation.mouse.x > canvas.width) simulation.mouse.x = canvas.width
+        if (simulation.mouse.y < 0) simulation.mouse.y = 0
+        if (simulation.mouse.y > canvas.height) simulation.mouse.y = canvas.height
+    },
+    inverted(e) {
+        simulation.mouse.x = e.clientX;
+        simulation.mouse.y = window.innerHeight - e.clientY;
+    },
+    invertedPointerLocked(e) {
+        simulation.mouse.x += e.movementX;
+        simulation.mouse.y -= e.movementY;
+        //keep mouse inside canvas
+        if (simulation.mouse.x < 0) simulation.mouse.x = 0
+        if (simulation.mouse.x > canvas.width) simulation.mouse.x = canvas.width
+        if (simulation.mouse.y < 0) simulation.mouse.y = 0
+        if (simulation.mouse.y > canvas.height) simulation.mouse.y = canvas.height
+    },
+    // isLockPointer: false,//use to lock pointer in the mousedown eventlistener
+    isPointerLocked: false, //tracks the pointer locked state
+    isMouseInWindow: true,
+    pointerUnlock() { //event
+        setTimeout(() => {
+            if (document.fullscreenElement && !simulation.onTitlePage && !build.isExperimentSelection && !simulation.paused) {
+                // mouseMove.isLockPointer = false
+                canvas.requestPointerLock();
+                mouseMove.isPointerLocked = true
+                mouseMove.reset()
+            }
+            // else if (!mouseMove.isLockPointer || !document.fullscreenElement) {
+            //     mouseMove.isLockPointer = false
+            // }
+            // document.body.removeEventListener('mousedown', mouseMove.pointerUnlock); //remove self so it can't trigger
+        }, 100);
+    },
+    reset() {//sets mouseMove.active based on inverted and pointer lock
+        if (simulation.isInvertedVertical) {
+            // simulation.mouse.y = canvas.height - simulation.mouse.y
+            if (mouseMove.isPointerLocked) {
+                mouseMove.active = mouseMove.invertedPointerLocked
+            } else {
+                mouseMove.active = mouseMove.inverted
+            }
+        } else {
+            if (mouseMove.isPointerLocked) {
+                mouseMove.active = mouseMove.pointerLocked
+            } else {
+                mouseMove.active = mouseMove.default
+                // if (true) {
+                //     //show where mouse is
+                //     simulation.ephemera.push({
+                //         count: 30, //cycles before it self removes
+                //         do() {
+                //             this.count--
+                //             if (this.count < 0) simulation.removeEphemera(this)
+                //             ctx.beginPath();
+                //             ctx.arc(simulation.mouse.x, -simulation.mouse.y, 50, 0, 2 * Math.PI);
+                //             ctx.fillStyle = "#f00"
+                //             ctx.fill();
+                //         },
+                //     })
+                // }
+            }
+        }
+    },
 }
-let mouseMove = mouseMoveDefault
+mouseMove.reset()
 document.body.addEventListener("mousemove", (e) => {
-    mouseMove(e)
+    mouseMove.active(e)
 });
 
 document.body.addEventListener("mouseup", (e) => {
@@ -1737,6 +1908,16 @@ document.body.addEventListener("mousedown", (e) => {
     } else if (e.button === 2) {
         input.field = true;
     }
+    //reenable pointer lock after choosing
+    // mouseMove.isLockPointer = true
+    // setTimeout(() => {
+    //     if (mouseMove.isLockPointer && document.fullscreenElement && !simulation.onTitlePage && !build.isExperimentSelection && !simulation.paused) {
+    //         mouseMove.isLockPointer = false
+    //         canvas.requestPointerLock();
+    //         mouseMove.isPointerLocked = true
+    //         mouseMove.reset()
+    //     }
+    // }, 100);
 });
 
 document.body.addEventListener("mouseenter", (e) => { //prevents mouse getting stuck when leaving the window
@@ -1745,6 +1926,7 @@ document.body.addEventListener("mouseenter", (e) => { //prevents mouse getting s
     } else {
         input.fire = false;
     }
+    mouseMove.isMouseInWindow = true
 
     // if (e.button === 3) {
     //     input.field = true;
@@ -1759,6 +1941,7 @@ document.body.addEventListener("mouseleave", (e) => { //prevents mouse getting s
     } else {
         input.fire = false;
     }
+    mouseMove.isMouseInWindow = false
 
     // if (e.button === 3) {
     //     input.field = true;
@@ -1779,6 +1962,7 @@ document.body.addEventListener("wheel", (e) => {
 }, {
     passive: true
 });
+
 
 //**********************************************************************
 //  local storage
@@ -1816,7 +2000,7 @@ if (localStorageCheck()) {
 if (localSettings.isAllowed && !localSettings.isEmpty) {
     console.log('restoring previous settings')
 
-    if (localSettings.key) {
+    if (localSettings.key && localSettings.key.fullscreen) {
         input.key = localSettings.key
     } else {
         input.setDefault()
@@ -1852,7 +2036,7 @@ if (localSettings.isAllowed && !localSettings.isEmpty) {
         if (localSettings.isAllowed) localStorage.setItem("localSettings", JSON.stringify(localSettings)); //update local storage
     }
     if (localSettings.isHideImages === undefined) localSettings.isHideImages = true //default to hide images
-    document.getElementById("hide-images").checked = localSettings.isHideImages
+    document.getElementById("show-images").checked = !localSettings.isHideImages
     // localSettings.isHideImages = true //no images
 
     if (localSettings.isHideHUD === undefined) localSettings.isHideHUD = true
@@ -1898,7 +2082,7 @@ if (localSettings.isAllowed && !localSettings.isEmpty) {
     if (localSettings.isAllowed) localStorage.setItem("localSettings", JSON.stringify(localSettings)); //update local storage
     document.getElementById("community-maps").checked = localSettings.isCommunityMaps
     simulation.isCommunityMaps = localSettings.isCommunityMaps
-    document.getElementById("hide-images").checked = localSettings.isHideImages
+    document.getElementById("show-images").checked = !localSettings.isHideImages
     document.getElementById("fps-select").value = localSettings.fpsCapDefault
     document.getElementById("banned").value = localSettings.banList
 }
@@ -1910,18 +2094,6 @@ input.controlTextUpdate()
 //**********************************************************************
 // settings
 //**********************************************************************
-
-
-// difficulty-select-experiment event listener is set in build.makeGrid
-// document.getElementById("difficulty-select").addEventListener("input", () => {
-//     simulation.difficultyMode = Number(document.getElementById("difficulty-select").value)
-//     lore.setTechGoal()
-//     localSettings.difficultyMode = simulation.difficultyMode
-//     localSettings.levelsClearedLastGame = 0 //after changing difficulty, reset run history
-//     localSettings.entanglement = undefined //after changing difficulty, reset stored tech
-//     if (localSettings.isAllowed) localStorage.setItem("localSettings", JSON.stringify(localSettings)); //update local storage
-// });
-
 
 document.getElementById("fps-select").addEventListener("input", () => {
     let value = document.getElementById("fps-select").value
@@ -2002,7 +2174,7 @@ document.getElementById("updates").addEventListener("toggle", function () {
                 text += data[i].commit.message
                 if (i < len - 1) text += "<hr>"
             }
-            text += "</pre>"
+            text += `</pre><hr><em>complete <a href="https://github.com/landgreen/n-gon/commits/master">change-log</a></em>`
             document.getElementById("updates-div").innerHTML = text.replace(/\n/g, "<br />")
         },
         function (xhr) {
@@ -2119,59 +2291,3 @@ function cycle() {
         simulation.loop();
     }
 }
-
-// function cycle() {
-//     if (!simulation.paused) requestAnimationFrame(cycle);
-//     const now = Date.now();
-//     const elapsed = now - simulation.then; // calc elapsed time since last loop
-//     if (elapsed > simulation.fpsInterval) { // if enough time has elapsed, draw the next frame
-//         simulation.then = now - (elapsed % simulation.fpsInterval); // Get ready for next frame by setting then=now.   Also, adjust for fpsInterval not being multiple of 16.67
-
-//         simulation.cycle++; //tracks game cycles
-//         m.cycle++; //tracks player cycles  //used to alow time to stop for everything, but the player
-//         if (simulation.clearNow) {
-//             simulation.clearNow = false;
-//             simulation.clearMap();
-//             level.start();
-//         }
-//         simulation.loop();
-//     }
-// }
-
-// let timeStart = performance.now()
-// //0,  16.6666666666,   33.333333333333, 50.000000000
-// function cycle(timestamp) {
-//     if (!simulation.paused) requestAnimationFrame(cycle);
-//     if (timestamp - timeStart > 0) { //simulation.fpsInterval) { // if enough time has elapsed, draw the next frame
-//         console.log(timestamp - timeStart)
-//         timeStart = timestamp
-//         simulation.cycle++; //tracks game cycles
-//         m.cycle++; //tracks player cycles  //used to alow time to stop for everything, but the player
-//         if (simulation.clearNow) {
-//             simulation.clearNow = false;
-//             simulation.clearMap();
-//             level.start();
-//         }
-//         simulation.loop();
-//     }
-// }
-
-// let count = 1
-// let timeStart = performance.now()
-// const cycle = (timestamp) => {
-//     // if (timeStart === undefined) timeStart = timestamp
-//     // console.log(timestamp, timeStart)
-//     if (timestamp - timeStart > tech.brainStormDelay * count) {
-//         count++
-//         powerUps.tech.effect();
-//         document.getElementById("choose-grid").style.pointerEvents = "auto"; //turn off the normal 500ms delay
-//         document.body.style.cursor = "auto";
-//         document.getElementById("choose-grid").style.transitionDuration = "0s";
-//     }
-//     if (count < 5 && simulation.isChoosing) {
-//         requestAnimationFrame(cycle);
-//     } else {
-//         tech.isBrainstormActive = false
-//     }
-// }
-// requestAnimationFrame(cycle);

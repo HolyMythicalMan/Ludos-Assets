@@ -4,11 +4,25 @@
     --hover-card-color: #e5e5ed;
 }
 
+/* * {
+    cursor: crosshair;
+} */
+
+/* override for text elements */
+/* p,
+span,
+input,
+textarea {
+    cursor: auto;
+} */
+
 body {
     font-family: "Helvetica", "Arial", sans-serif;
     margin: 0;
     overflow: hidden;
     cursor: auto;
+    /* cursor: crosshair; */
+    /* cursor: text; */
     background-color: #f00;
     /* filter: grayscale(1); */
     /* transition: background-color 0.2s ease-in-out; */
@@ -895,6 +909,18 @@ summary {
     color: #356;
 }
 
+.underline {
+    text-decoration: underline;
+    text-decoration-color: #f7b;
+    /* text-decoration-style: double; */
+    /* text-decoration-style: wavy; */
+    text-decoration-thickness: 0.16em;
+}
+
+.color-tier {
+    color: #006aff;
+}
+
 .color-choice {
     display: inline-block;
 }
@@ -1015,7 +1041,9 @@ summary {
 
 .color-print {
     color: #567;
-    font-family: 'Courier New', Courier, monospace;
+    /* font-family: monospace; */
+    font-variant-caps: small-caps;
+    /* font-size: 1.3em; */
 }
 
 .color-defense {
@@ -1084,6 +1112,15 @@ summary {
     font-size: 90%;
 }
 
+.circle-grid-title {
+    width: 1.5em;
+    height: 1.5em;
+    border-radius: 50%;
+    display: inline-block;
+    margin-bottom: -0.45em;
+    margin-top: -0.3em;
+}
+
 .circle-grid {
     width: 1.32em;
     height: 1.32em;
@@ -1093,17 +1130,19 @@ summary {
 }
 
 .circle-grid-instant {
-    width: 1.1em;
-    height: 1.1em;
+    width: 1.3em;
+    height: 1.3em;
     border-radius: 50%;
     border: 0.15em solid hsl(255, 100%, 71%);
     display: inline-block;
-    margin-bottom: -0.35em;
+    margin-bottom: -0.5em;
+    margin-top: -0.3em;
+    /* margin-bottom: -0.35em; */
 }
 
 .circle-grid-skin {
-    width: 1.25em;
-    height: 1.25em;
+    width: 1.3em;
+    height: 1.3em;
     border-radius: 50%;
     display: inline-block;
     background-color: #fff;
@@ -1502,6 +1541,11 @@ summary {
     }
 } */
 .blurry-text {
+    user-select: none;
+    filter: blur(3.5px) contrast(1.4);
+}
+
+.blur-text {
     color: transparent;
     text-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
 }
@@ -1659,7 +1703,7 @@ summary {
 }
 
 .row {
-    transition: opacity 0.4s ease-out;
+    transition: opacity 0.5s ease-out;
     /* border: 2px #444 solid; */
     /* margin-top: -2px; */
     font-size: 1.2rem;
